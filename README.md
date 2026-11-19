@@ -8,7 +8,8 @@ A predictive controller that learns each rack's thermal behaviour online and pic
 
 Java 17 · Spring Boot 3.3 · MQTT 3.1.1 · ESP32 · zero-dependency demo build
 
-<img src="docs/images/dashboard-light.png" alt="EcoAI Grid dashboard in light theme: three racks, controller scoreboard, charts, alerts and fault console" width="860">
+<img src="<img width="1350" height="767" alt="image" src="https://github.com/user-attachments/assets/b0e498fa-07e7-4e2f-ba27-c602e3959eae" />
+">
 
 </div>
 
