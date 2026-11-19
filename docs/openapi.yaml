@@ -1,0 +1,113 @@
+openapi: 3.0.3
+info:
+  title: EcoAI Grid API
+  version: 1.0.0
+  description: >
+    REST API of the Spring Boot build (the plain-JDK build serves the unversioned /api/... routes with the same payloads).
+    If ecoai.token is set, send it as ?token=, the X-Token header or the cookie set on the first visit.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/state:
+    get:
+      summary: Full dashboard state (controllers, racks, KPIs, history, recent events)
+      responses:
+        "200": { description: State document, content: { application/json: { schema: { type: object } } } }
+  /api/v1/stream:
+    get:
+      summary: Server-sent events, one `state` event per second with the same document as /api/v1/state
+      responses:
+        "200": { description: Event stream, content: { text/event-stream: { schema: { type: string } } } }
+  /api/v1/events:
+    get:
+      summary: Safety and fault events, newest first
+      responses:
+        "200":
+          description: Events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Event" }
+  /api/v1/config:
+    get:
+      summary: Current optimiser settings
+      responses:
+        "200": { description: Settings, content: { application/json: { schema: { $ref: "#/components/schemas/Config" } } } }
+    put:
+      summary: Live-tune the optimiser (fields left out stay unchanged)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                setpoint: { type: number, minimum: 34, maximum: 39, description: AI target ceiling in C }
+                waterWeight: { type: number, minimum: 0, maximum: 60, description: Water priority }
+      responses:
+        "200": { description: Updated settings, content: { application/json: { schema: { $ref: "#/components/schemas/Config" } } } }
+        "400": { description: Validation failed, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/commands:
+    post:
+      summary: Inject a fault or change the simulated workload (demo mode and simulator only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cmd]
+              properties:
+                cmd:
+                  type: string
+                  enum: [burst, burstall, fanfail, fanfix, stuck, unstuck, unplug, replug, partition, heal, clear, profile, pause, reset]
+                rack: { type: integer, minimum: 0, maximum: 2 }
+                name: { type: string, enum: [mixed, idle, office, batch, spiky, stress], description: Required for cmd=profile }
+      responses:
+        "202": { description: Accepted }
+        "400": { description: Unknown command or missing name, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/report.html:
+    get:
+      summary: Printable report of the current run (use the browser's Save as PDF)
+      responses:
+        "200": { description: HTML report, content: { text/html: { schema: { type: string } } } }
+  /api/report.csv:
+    get:
+      summary: Results table of the current run
+      responses:
+        "200": { description: CSV, content: { text/csv: { schema: { type: string } } } }
+  /api/runs:
+    get:
+      summary: Saved (recorded) runs
+      responses:
+        "200": { description: Run files, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /actuator/health:
+    get:
+      summary: Spring Boot health, including the control engine and the MQTT link in live mode
+      responses:
+        "200": { description: UP }
+        "503": { description: DOWN }
+components:
+  schemas:
+    Config:
+      type: object
+      properties:
+        setpoint: { type: number }
+        waterWeight: { type: number }
+        serviceLimit: { type: number }
+        racks: { type: integer }
+        mode: { type: string, enum: [demo, live] }
+    Event:
+      type: object
+      properties:
+        seq: { type: integer }
+        t: { type: number, description: Seconds since the run started }
+        sev: { type: string, enum: [info, warn, crit] }
+        rack: { type: integer }
+        text: { type: string }
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        fields: { type: object, additionalProperties: { type: string } }

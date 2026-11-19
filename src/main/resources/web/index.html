@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EcoAI Grid</title>
+<style>
+@font-face{font-family:"Bricolage Grotesque";src:url(/fonts/bricolage-grotesque-latin-wght-normal.woff2) format("woff2");font-weight:200 800;font-display:swap}
+@font-face{font-family:"Hanken Grotesk";src:url(/fonts/hanken-grotesk-latin-wght-normal.woff2) format("woff2");font-weight:100 900;font-display:swap}
+
+:root{
+  --bg:#E9EFF2; --panel:#F7FAFB; --ink:#14232F; --mut:#52636F; --line:#C9D6DD; --line2:#DCE5EA; --grid:rgba(20,35,47,.045);
+  --teal:#1B8A8F; --teal-ink:#0E6468; --bad:#C0392B; --warn:#9A5B00; --warn-bg:#F6E3BF; --ok:#1E7A4C; --cab:#DCE6EB; --cold:#4C9BE8;
+  --c-static:#7C8C97; --c-thermo:#8E6BBF; --c-thermop:#D98A1F; --c-ai:#1B8A8F;
+  --r0:#2F6FDE; --r1:#1B8A8F; --r2:#8E6BBF;
+}
+:root[data-theme=dark]{
+  --bg:#0C1A23; --panel:#112530; --ink:#E5EEF2; --mut:#93A9B5; --line:#27424F; --line2:#1B3340; --grid:rgba(229,238,242,.04);
+  --teal:#35B4B9; --teal-ink:#6AD3D7; --bad:#FF7F69; --warn:#F0B54F; --warn-bg:#3D3016; --ok:#52C98E; --cab:#17313E; --cold:#6FA8F0;
+  --c-static:#8FA0AB; --c-thermo:#B497E0; --c-thermop:#F0A64B; --c-ai:#35B4B9;
+  --r0:#6FA3FF; --r1:#35B4B9; --r2:#B497E0;
+}
+*{box-sizing:border-box}
+html{color-scheme:light}
+html[data-theme=dark]{color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 "Hanken Grotesk",system-ui,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3,.disp{font-family:"Bricolage Grotesque","Hanken Grotesk",system-ui,sans-serif;letter-spacing:-.012em}
+.num{font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:6px}
+.app-shell{min-height:100vh;display:grid;grid-template-columns:244px minmax(0,1fr)}
+.sidebar{position:sticky;top:0;height:100vh;padding:24px 16px;border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;gap:26px}
+.sidebar .brand{padding:0 9px}.sidebar .brand h1{font-size:22px}.sidebar .brand p{font-size:12px}
+.nav-label{margin:0 9px 7px;color:var(--mut);font-size:11px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.nav{display:grid;gap:5px}
+.nav button{display:flex;align-items:center;gap:10px;width:100%;padding:10px 11px;border:0;border-radius:10px;background:transparent;color:var(--mut);font:650 14px "Hanken Grotesk",sans-serif;text-align:left;cursor:pointer}
+.nav button:hover{background:var(--line2);color:var(--ink)}.nav button[aria-current=true]{background:color-mix(in srgb,var(--teal) 15%,transparent);color:var(--teal-ink)}
+.nav svg{width:18px;height:18px;stroke:currentColor;stroke-width:1.8;fill:none;flex:none}
+.sidebar-note{margin-top:auto;padding:13px;border:1px solid var(--line);border-radius:13px;color:var(--mut);font-size:12.5px;line-height:1.4}.sidebar-note b{display:block;margin-bottom:3px;color:var(--ink);font-size:13px}
+.main{min-width:0}.wrap{max-width:1440px;margin:0 auto;padding:20px 28px 40px}
+.top .brand{display:none}.view{display:none;animation:view-in .22s ease-out}.view.is-active{display:block}
+@keyframes view-in{from{opacity:.25;transform:translateY(4px)}to{opacity:1;transform:none}}
+.view-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:26px 0 16px}.view-head h2{margin:0;font-size:25px;font-weight:720}.view-head p{margin:3px 0 0;color:var(--mut);font-size:14px}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:13px}
+.brand h1{margin:0;font-size:27px;font-weight:750;line-height:1}
+.brand p{margin:3px 0 0;color:var(--mut);font-size:13.5px}
+.tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 13px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--mut);font-size:13.5px}
+.chip b{color:var(--ink);font-weight:650}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.dot.down{background:var(--bad)}
+.btn,.sel{height:36px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+.btn:hover,.sel:hover{border-color:var(--teal)}
+.btn[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* signal path: a real sequence, so a rail with nodes */
+.path{list-style:none;margin:20px 0 22px;padding:0;display:grid;grid-template-columns:repeat(5,1fr);position:relative}
+.path li{position:relative;padding:14px 12px 0 0}
+.path li::before{content:"";position:absolute;top:4px;left:0;right:0;height:2px;background:var(--line)}
+.path li::after{content:"";position:absolute;top:0;left:0;width:10px;height:10px;border-radius:50%;background:var(--panel);border:2px solid var(--teal)}
+.path b{display:block;font:650 15px "Bricolage Grotesque",sans-serif}
+.path span{display:block;color:var(--mut);font-size:13px;font-variant-numeric:tabular-nums}
+.path.live::after{content:"";position:absolute;top:1px;left:0;width:8px;height:8px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 4px color-mix(in srgb,var(--teal) 25%,transparent);animation:flow 2.6s linear infinite}
+@keyframes flow{0%{left:0;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:calc(100% - 8px);opacity:0}}
+
+/* headline */
+.lede{margin:4px 0 22px}
+.lede1{margin:0;max-width:24em;text-wrap:balance;font:700 clamp(28px,3.4vw,44px)/1.08 "Bricolage Grotesque",sans-serif;letter-spacing:-.025em}
+.lede2{margin:10px 0 0;max-width:68ch;color:var(--mut);font-size:17px;line-height:1.5}
+
+/* the stage: three racks, one shared panel */
+.stage{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:22px;overflow:hidden;background-color:var(--panel);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:28px 28px}
+.rack{padding:16px 20px 20px;min-width:0}
+.rack+.rack{border-left:1px solid var(--line)}
+.rack-h{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:30px;flex-wrap:wrap}
+.rack-h h3{margin:0;font-size:19px;font-weight:700}
+.tags{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:650;white-space:nowrap}
+.tag.det{background:var(--warn-bg);color:var(--warn)}
+.tag.real{border:1.5px solid var(--bad);color:var(--bad)}
+.viz canvas{display:block;width:100%;height:270px}
+.temp{display:flex;align-items:baseline;gap:6px;margin-top:2px}
+.temp .num{font:700 62px/1 "Bricolage Grotesque",sans-serif;letter-spacing:-.03em}
+.temp .unit{color:var(--mut);font-size:19px}
+.sub{min-height:21px;color:var(--mut);font-size:13.5px}
+.meters{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:14px 0 0}
+.meters dt{color:var(--mut);font-size:12.5px}
+.meters dd{margin:0;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mbar{display:block;height:4px;border-radius:2px;background:var(--line2);margin-top:5px;overflow:hidden}
+.mbar i{display:block;height:100%;background:var(--teal);width:0;transition:width .4s}
+.legend{margin:10px 2px 0;color:var(--mut);font-size:13px}
+
+/* scoreboard: open rows, bars instead of a table */
+.board{margin:40px 0 0}
+.board h2{margin:0;font-size:23px;font-weight:700}
+.board>p{margin:4px 0 14px;max-width:84ch;color:var(--mut);font-size:13.5px}
+.sc-row{display:grid;grid-template-columns:minmax(190px,1.2fr) 2fr 1.8fr 1.1fr 1.7fr;gap:20px;align-items:center;padding:13px 0;border-top:1px solid var(--line)}
+.sc-row.hd{border-top:0;padding:2px 0 8px;color:var(--mut);font-size:13px}
+.sc-row.ai{margin:0 -14px;padding-left:14px;padding-right:14px;border-radius:14px;border-top-color:transparent;background:linear-gradient(90deg,color-mix(in srgb,var(--teal) 13%,transparent),transparent 75%)}
+.sc-row.ai+.sc-row{border-top-color:transparent}
+.sc-name{white-space:nowrap;display:flex;align-items:center;gap:10px;font:700 18px "Bricolage Grotesque",sans-serif}
+.swatch{width:11px;height:11px;border-radius:3px;flex:none}
+.val{display:flex;align-items:center;gap:12px}
+.track{flex:1;height:10px;border-radius:5px;background:var(--line2);overflow:hidden}
+.track i{display:block;height:100%;width:0;border-radius:5px;transition:width .5s}
+.val b{min-width:76px;text-align:right;font-weight:650;font-variant-numeric:tabular-nums}
+.lim b{display:block;font-weight:700}
+.lim small{display:block;color:var(--mut);font-size:12.5px}
+.ok{color:var(--ok)} .bad{color:var(--bad)}
+.cmp{display:flex;flex-wrap:wrap;gap:6px}
+.pill{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:999px;font-size:12.5px;font-weight:600;background:var(--line2);color:var(--ink)}
+.pill.good{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.pill.more{background:var(--warn-bg);color:var(--warn)}
+
+/* charts: open blocks, no card chrome */
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin:36px 0}
+.chart{border-top:1px solid var(--line);padding-top:14px;min-width:0}
+.chart h2{margin:0;font-size:20px;font-weight:700}
+.chart p{margin:2px 0 8px;color:var(--mut);font-size:13.5px}
+.chart canvas{display:block;width:100%;height:270px;cursor:crosshair}
+
+/* dock: faults, tuning and the message feed */
+.dock{display:grid;grid-template-columns:1.3fr 1fr;border:1px solid var(--line);border-radius:22px;background:var(--panel);overflow:hidden}
+.dock>section{padding:22px 24px;min-width:0}
+.dock>section+section{border-left:1px solid var(--line)}
+.dock h2{margin:0 0 4px;font-size:20px;font-weight:700}
+.dock h2+p,.note{margin:0 0 14px;color:var(--mut);font-size:13.5px}
+.fc{display:grid;grid-template-columns:auto repeat(4,auto);gap:10px 14px;align-items:center;justify-content:start;margin-bottom:12px}
+.fc .h{color:var(--mut);font-size:13px}
+.fc-row{display:contents}
+.cell{display:inline-flex}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px}
+.seg button{border:0;background:transparent;color:var(--ink);padding:6px 11px;font:inherit;font-size:13.5px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button:first-child{border-radius:9px 0 0 9px}
+.seg button:last-child{border-radius:0 9px 9px 0}
+.seg button:only-child{border-radius:9px}
+.seg button:hover{background:var(--line2)}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.seg button.f[aria-pressed=true]{background:var(--bad);color:#fff}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 22px;align-items:center}
+.sl{display:grid;grid-template-columns:140px 1fr 70px;gap:14px;align-items:center;margin:6px 0}
+.sl output{font:700 18px "Bricolage Grotesque",sans-serif;text-align:right}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;background:var(--teal);border:4px solid var(--panel);box-shadow:0 0 0 1px var(--teal)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--line)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--teal);border:4px solid var(--panel);box-shadow:0 0 0 1px var(--teal)}
+#feed{list-style:none;margin:0;padding:0}
+#feed li{display:grid;grid-template-columns:14px 46px 1fr;gap:6px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line2);font-size:13.5px}
+#feed li:first-child{border-top:0}
+#feed i{width:8px;height:8px;border-radius:50%;display:block;transform:translateY(-1px)}
+#feed time{color:var(--mut);font-variant-numeric:tabular-nums}
+#bus{margin:12px 0 0;color:var(--mut);font-size:13px}
+.foot{margin-top:26px;color:var(--mut);font-size:12.5px}
+
+@media (max-width:1000px){
+  .val{flex-wrap:wrap}
+  .sc-row [data-label]::before{content:attr(data-label);flex-basis:100%;display:block;color:var(--mut);font-size:12.5px;margin-bottom:3px}
+  .sc-row>*{min-width:0}
+  .val .track{flex:1 1 40px;min-width:40px}
+  .val b{min-width:0;white-space:nowrap}
+  .stage{grid-template-columns:1fr}
+  .rack+.rack{border-left:0;border-top:1px solid var(--line)}
+  .charts,.dock{grid-template-columns:1fr}
+  .dock>section+section{border-left:0;border-top:1px solid var(--line)}
+  .path{grid-template-columns:repeat(2,1fr);row-gap:6px}
+  .sc-row{grid-template-columns:1fr 1fr;gap:10px 16px}
+  .sc-row.hd{display:none}
+  .sc-name{grid-column:1/-1}
+}
+@media (max-width:560px){
+  .wrap{padding:16px 14px 32px}
+  .fc{display:block}
+  .fc .colh{display:none}
+  .fc-row{display:grid;grid-template-columns:1fr 1fr;gap:20px 10px;padding:12px 0 6px;border-top:1px solid var(--line2)}
+  .fc-row .rl{grid-column:1/-1;font-weight:650;color:var(--ink)}
+  .fc-row [data-cap]{position:relative;margin-top:14px;justify-self:start}
+  .fc-row [data-cap]::before{content:attr(data-cap);position:absolute;top:-17px;left:0;color:var(--mut);font-size:12px}
+  .sl{grid-template-columns:1fr 60px}.sl label{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:reduce){
+  .path.live::after{animation:none;opacity:1;left:0}
+  .track i,.mbar i{transition:none}
+}
+
+/* why-line, alerts, replay bar, presets */
+.why{margin:6px 0 2px;padding:6px 10px;border-left:3px solid var(--teal);background:color-mix(in srgb,var(--teal) 8%,transparent);border-radius:0 8px 8px 0;color:var(--ink);font-size:13px;line-height:1.4;min-height:0}
+.why:empty{display:none}
+a.btn{display:inline-flex;align-items:center;text-decoration:none}
+.alerts{border:1px solid var(--line);border-radius:22px;background:var(--panel);padding:22px 24px}
+.alerts h2{margin:0 0 4px;font-size:20px;font-weight:700}
+.alerts>p{margin:0 0 12px;color:var(--mut);font-size:13.5px}
+#evl{list-style:none;margin:0;padding:0;max-height:300px;overflow:auto}
+#evl li{display:grid;grid-template-columns:64px 62px 1fr;gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line2);font-size:13.5px}
+#evl li:first-child{border-top:0}
+#evl time{color:var(--mut);font-variant-numeric:tabular-nums}
+#evl .lv{display:inline-flex;align-items:center;justify-content:center;height:20px;border-radius:999px;font-size:11.5px;font-weight:700}
+#evl .crit .lv{background:var(--bad);color:#fff}
+#evl .warn .lv{background:var(--warn-bg);color:var(--warn)}
+#evl .info .lv{border:1px solid var(--line);color:var(--mut)}
+#evl .empty{display:block;color:var(--mut)}
+.fcs{margin:8px 0 0;font-size:13px;color:var(--mut)}
+.fcs b{color:var(--ink)}
+.tools .seek,.seek{width:220px;max-width:100%;flex:none;accent-color:var(--teal)}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 6px}
+.presets button{height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
+.presets button:hover{border-color:var(--teal)}
+.presets button[aria-pressed=true]{background:var(--teal);border-color:var(--teal);color:#fff}
+body.replay .dock{grid-template-columns:1fr}
+body.replay .dock>section:first-child{display:none}
+body.replay .dock>section+section{border-left:0}
+@media (max-width:760px){#evl li{grid-template-columns:52px 54px 1fr;gap:8px}.alerts{padding:18px 16px}}
+@media (max-width:860px){
+  .app-shell{display:block}.sidebar{position:sticky;z-index:5;height:auto;padding:10px 14px;border-right:0;border-bottom:1px solid var(--line);gap:9px}
+  .sidebar .brand,.sidebar-note,.nav-label{display:none}.nav{display:flex;gap:4px;overflow-x:auto}.nav button{width:auto;flex:0 0 auto;padding:8px 10px;font-size:13px}
+  .wrap{padding:14px 16px 32px}.top .brand{display:flex}.top .brand h1{font-size:21px}.top .brand p{display:none}.view-head{margin:18px 0 12px}
+}
+@media (max-width:560px){.nav button span{display:none}.nav button{padding:9px}.top{align-items:flex-start}.tools{width:100%}.tools .chip{display:none}}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" aria-label="Primary navigation">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><g id="mark"></g></svg>
+      <div><h1>EcoAI Grid</h1><p>Cooling control centre</p></div>
+    </div>
+    <div>
+      <p class="nav-label">Control room</p>
+      <nav class="nav" aria-label="Dashboard sections">
+        <button data-view="overview" aria-current="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Overview</span></button>
+        <button data-view="operations" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="17" r="2"/></svg><span>Operations</span></button>
+        <button data-view="analytics" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-4 3 2 5-6"/></svg><span>Analytics</span></button>
+        <button data-view="alerts" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 20h18L12 3Z"/><path d="M12 9v4M12 17h.01"/></svg><span>Alerts</span></button>
+      </nav>
+    </div>
+    <div class="sidebar-note"><b>Live telemetry</b>One-second samples from the cooling control engine.</div>
+  </aside>
+  <main class="main">
+    <div class="wrap">
+      <header class="top">
+        <div class="brand"><svg width="30" height="30" viewBox="0 0 34 34" aria-hidden="true"><g id="mark-mobile"></g></svg><div><h1>EcoAI Grid</h1><p>Cooling control centre</p></div></div>
+        <div class="tools" id="tools"></div>
+      </header>
+
+      <section class="view is-active" data-view-panel="overview">
+        <div class="view-head"><div><h2>Cooling overview</h2><p>Live rack health, the signal path, and controller comparison.</p></div></div>
+        <ol class="path" id="path" aria-label="Signal path from sensors to actuators">
+          <li><b>Rack sensors</b><span id="p0">waiting</span></li><li><b>MQTT bus</b><span id="p1">waiting</span></li><li><b>Thermal model</b><span id="p2">waiting</span></li><li><b>Optimiser</b><span id="p3">waiting</span></li><li><b>Fans and pump</b><span id="p4">waiting</span></li>
+        </ol>
+        <section class="lede"><p class="lede1" id="lede1" aria-live="polite">Connecting to the backend.</p><p class="lede2" id="lede2"></p></section>
+        <section class="stage" id="stage" aria-label="Live view of the three racks"></section><p class="legend" id="legend"></p>
+        <section class="board"><h2 id="bt">Controllers</h2><p id="bn"></p><div id="rows"></div></section>
+      </section>
+
+      <section class="view" data-view-panel="operations">
+        <div class="view-head"><div><h2>Operations</h2><p>Inject simulated faults, change the workload, and tune the optimiser.</p></div></div>
+        <section class="dock">
+          <section><h2>Fault console</h2><p id="fcNote">Break something and watch each controller respond. Changes apply to every controller at once.</p><div class="fc" id="fc"></div><div class="actions" id="actions"></div>
+            <div id="presetBox"><h2>Workload</h2><p>Choose what the simulated servers are doing. All four controllers see the same load.</p><div class="presets" id="presets"></div><p class="note" id="presetNote" style="margin:0 0 18px"></p></div>
+            <h2>Optimiser tuning</h2><p>Both settings change the AI controller immediately.</p><div class="sl"><label for="sp">Target ceiling</label><input id="sp" type="range" min="34" max="39" step="0.5"><output id="spv"></output></div><p class="note" style="margin:0 0 10px">A higher target saves fan energy and leaves less headroom before the limit.</p><div class="sl"><label for="ww">Water priority</label><input id="ww" type="range" min="0" max="40" step="1"><output id="wwv"></output></div><p class="note" style="margin:0">A higher priority keeps coolant use down and spends more electricity on fans.</p>
+          </section>
+          <section><h2>Message feed</h2><p>What rack 0 and the backend are saying to each other right now.</p><ul id="feed"></ul><p id="bus"></p></section>
+        </section>
+      </section>
+
+      <section class="view" data-view-panel="analytics">
+        <div class="view-head"><div><h2>Analytics</h2><p>Temperature forecasts and cooling power over the current run.</p></div></div>
+        <section class="charts"><article class="chart"><h2>Rack temperatures</h2><p>Dashed line is the target. The red zone is above the service limit. Faint dotted lines show what the model had forecast 30 seconds earlier.</p><canvas id="chartTemp" role="img" aria-label="Rack temperature over time"></canvas><p class="fcs" id="fcs"></p></article><article class="chart"><h2>Cooling power</h2><p>Electrical power spent on fans and pumps, all racks together.</p><canvas id="chartPower" role="img" aria-label="Cooling power over time for each controller"></canvas></article></section>
+      </section>
+
+      <section class="view" data-view-panel="alerts">
+        <div class="view-head"><div><h2>Safety alerts</h2><p>Protection actions taken by the backend and the simulated nodes.</p></div></div>
+        <section class="alerts" id="alerts"><h2>Safety and fault alerts</h2><p id="evn">Everything the backend and the nodes did to protect the racks, newest first.</p><ul id="evl"></ul></section>
+      </section>
+      <p class="foot">Fonts: Bricolage Grotesque and Hanken Grotesk, bundled under the SIL Open Font License.</p>
+    </div>
+  </main>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const f1=(v,d)=>v==null?'-':v.toFixed(d==null?1:d);
+let S=null,built=false,K=null,netDown=false,toolsKey='',lastLede='',tagCache={};
+
+/* ---------- theme + colours ---------- */
+function readColors(){const s=getComputedStyle(document.documentElement),g=n=>s.getPropertyValue(n).trim();
+  return {bg:g('--bg'),panel:g('--panel'),ink:g('--ink'),mut:g('--mut'),line:g('--line'),line2:g('--line2'),teal:g('--teal'),bad:g('--bad'),cab:g('--cab'),cold:g('--cold'),
+    ctrl:{STATIC:g('--c-static'),THERMOSTAT:g('--c-thermo'),'THERMOSTAT+':g('--c-thermop'),AI:g('--c-ai')},racks:[g('--r0'),g('--r1'),g('--r2')]};}
+const k=()=>K||(K=readColors());
+function setTheme(t){document.documentElement.dataset.theme=t;try{localStorage.setItem('eco-theme',t)}catch(e){}K=null;toolsKey=''}
+(function(){let t=null;try{t=localStorage.getItem('eco-theme')}catch(e){}
+  if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;})();
+
+const hex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const rgba=(h,a)=>{const c=hex(h);return `rgba(${c[0]},${c[1]},${c[2]},${a})`};
+const STOPS=[[26,'#4C9BE8'],[33,'#58B6A6'],[36.5,'#F4C95D'],[39,'#F08A3C'],[41.5,'#E4572E'],[45,'#A8231C']].map(s=>[s[0],hex(s[1])]);
+function rampRGB(T){if(T==null||isNaN(T))T=26;if(T<=STOPS[0][0])return STOPS[0][1];
+  for(let i=1;i<STOPS.length;i++){if(T<=STOPS[i][0]){const a=STOPS[i-1],b=STOPS[i],u=(T-a[0])/(b[0]-a[0]);return a[1].map((v,j)=>v+(b[1][j]-v)*u)}}
+  return STOPS[STOPS.length-1][1]}
+const ramp=(T,a)=>{const c=rampRGB(T);return `rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`};
+const mixRGB=(a,b,u,al)=>`rgba(${(a[0]+(b[0]-a[0])*u)|0},${(a[1]+(b[1]-a[1])*u)|0},${(a[2]+(b[2]-a[2])*u)|0},${al})`;
+const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};
+
+/* brand mark: a 3x3 thermal mosaic */
+(function(){const cols=['#4C9BE8','#58B6A6','#8FC98E','#58B6A6','#F4C95D','#F08A3C','#F4C95D','#F08A3C','#E4572E'];let s='';
+  cols.forEach((c,i)=>{const x=(i%3)*11.5,y=((i/3)|0)*11.5;s+=`<rect x="${x}" y="${y}" width="10.5" height="10.5" rx="3" fill="${c}"/>`});['mark','mark-mobile'].forEach(id=>$(id).innerHTML=s)})();
+
+/* ---------- application navigation ---------- */
+const VIEWS=['overview','operations','analytics','alerts'];
+function setView(view,writeHash){
+  if(!VIEWS.includes(view))view='overview';
+  document.querySelectorAll('[data-view-panel]').forEach(p=>p.classList.toggle('is-active',p.dataset.viewPanel===view));
+  document.querySelectorAll('.nav button[data-view]').forEach(b=>b.setAttribute('aria-current',String(b.dataset.view===view)));
+  if(writeHash)history.replaceState(null,'','#'+view);
+  requestAnimationFrame(()=>{if(S&&view==='analytics')drawCharts()});
+}
+function initNavigation(){
+  document.querySelector('.nav').addEventListener('click',e=>{const b=e.target.closest('button[data-view]');if(b)setView(b.dataset.view,true)});
+  addEventListener('hashchange',()=>setView(location.hash.slice(1),false));
+  setView(location.hash.slice(1),false);
+}
+initNavigation();
+
+/* ---------- data ---------- */
+const ctl=(c,r,v,name)=>fetch('/api/ctl?cmd='+c+(r!=null?'&rack='+r:'')+(v!=null?'&val='+v:'')+(name!=null?'&name='+encodeURIComponent(name):''));
+async function poll(){
+  try{const r=await fetch('/api/state');S=await r.json();}catch(e){return}            // server briefly unreachable: keep the last frame
+  try{render()}catch(e){console.error('render failed:',e)}                            // never swallow a drawing bug silently
+}
+setInterval(poll,500);poll();
+function fmtT(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=Math.floor(s%60);return h+'h '+String(m).padStart(2,'0')+'m '+String(x).padStart(2,'0')+'s'}
+const clockShort=s=>{const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h+':'+String(m).padStart(2,'0')};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const PRESETS=[['mixed','Mixed','Slow daily swing with occasional bursts. The default, and the one the README results use.'],
+  ['idle','Idle','Quiet night: low steady load, no bursts.'],['office','Office day','Load climbs through the morning and falls in the evening.'],
+  ['batch','Batch jobs','Racks switch between heavy jobs and idle in staggered cycles.'],['spiky','Spiky','Frequent short bursts on top of a moderate base.'],
+  ['stress','Stress','High sustained load with bursts: tests the cooling headroom.']];
+
+/* ---------- build static DOM once ---------- */
+function build(){
+  let st='';
+  for(let i=0;i<3;i++){
+    st+=`<article class="rack" aria-label="Rack ${i}">
+      <div class="rack-h"><h3>Rack ${i}</h3><div class="tags" id="tg${i}"></div></div>
+      <div class="viz"><canvas id="cv${i}" title="Thermometer on the left: the teal mark is the target, the red mark is the limit. Streaks show airflow, the pipe on the right shows coolant flow." role="img" aria-label="Rack ${i} thermal view"></canvas></div>
+      <div class="temp"><span class="num" id="T${i}">-</span><span class="unit" id="Tu${i}">°C</span></div>
+      <div class="sub" id="m${i}"></div>
+      <div class="why" id="why${i}"></div>
+      <dl class="meters">
+        <div><dt>Fan</dt><dd id="fv${i}">-</dd><span class="mbar"><i id="fb${i}"></i></span></div>
+        <div><dt>Pump</dt><dd id="pv${i}">-</dd><span class="mbar"><i id="pb${i}"></i></span></div>
+        <div><dt>IT load</dt><dd id="ld${i}">-</dd></div>
+      </dl></article>`;
+  }
+  $('stage').innerHTML=st;
+
+  // fault console
+  const cols=[['Fan',[['fanfail','Fail','fanFailed',true],['fanfix','Working','fanFailed',false]]],
+              ['Sensor',[['stuck','Frozen','stuck',true],['unstuck','Working','stuck',false]]],
+              ['Cable',[['unplug','Pulled','unplugged',true],['replug','Connected','unplugged',false]]]];
+  let fc='<span class="h colh"></span>'+cols.map(c=>`<span class="h colh">${c[0]}</span>`).join('')+'<span class="h colh">Load</span>';
+  for(let i=0;i<3;i++){
+    fc+=`<div class="fc-row"><span class="h rl">Rack ${i}</span>`;
+    cols.forEach(c=>{fc+=`<span class="seg" data-cap="${c[0]}" role="group" aria-label="Rack ${i} ${c[0].toLowerCase()}">`+
+      c[1].map(b=>`<button data-cmd="${b[0]}" data-rack="${i}" data-field="${b[2]}" data-want="${b[3]}" class="${b[3]?'f':''}" aria-pressed="false">${b[1]}</button>`).join('')+`</span>`});
+    fc+=`<span class="cell" data-cap="Load"><button class="btn" data-cmd="burst" data-rack="${i}">Load burst</button></span></div>`;
+  }
+  $('fc').innerHTML=fc;
+  $('actions').innerHTML=`<button class="btn" data-cmd="burstall">Burst all racks</button>
+    <span class="seg" role="group" aria-label="Network"><button class="f" data-cmd="partition" data-net="1" aria-pressed="false">Drop network</button><button data-cmd="heal" data-net="0" aria-pressed="true">Network up</button></span>
+    <button class="btn" data-cmd="clear">Clear all faults</button>`;
+  document.querySelector('.dock').addEventListener('click',e=>{
+    const b=e.target.closest('button[data-cmd]');if(!b)return;
+    const c=b.dataset.cmd;ctl(c,b.dataset.rack!=null?b.dataset.rack:null);
+    if(c==='partition')netDown=true;else if(c==='heal'||c==='clear')netDown=false;
+  });
+  $('presets').innerHTML=PRESETS.map(p=>`<button data-preset="${p[0]}" aria-pressed="false">${p[1]}</button>`).join('');
+  $('presets').addEventListener('click',e=>{const b=e.target.closest('button[data-preset]');if(b)ctl('profile',null,null,b.dataset.preset)});
+  $('sp').oninput=e=>$('spv').textContent=e.target.value+' °C';
+  $('ww').oninput=e=>$('wwv').textContent=e.target.value;
+  $('sp').onchange=e=>ctl('setpoint',null,e.target.value);
+  $('ww').onchange=e=>ctl('waterweight',null,e.target.value);
+  ['chartTemp','chartPower'].forEach(id=>{const c=$(id);
+    c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect();c._hx=e.clientX-r.left;if(S)drawCharts()});
+    c.addEventListener('mouseleave',()=>{c._hx=null;if(S)drawCharts()});});
+  built=true;
+}
+
+/* ---------- header tools ---------- */
+function renderTools(){
+  const dark=document.documentElement.dataset.theme==='dark';
+  const rp=S.mode==='replay';
+  const key=S.mode+'|'+S.paused+'|'+S.broker+'|'+dark;
+  if(key!==toolsKey){toolsKey=key;let h='';
+    const spd='<select class="sel" id="spd" aria-label="Simulation speed"><option value="1">1x</option><option value="5">5x</option><option value="10">10x</option><option value="20">20x</option><option value="60">60x</option><option value="200">200x</option></select>';
+    if(S.mode==='demo'){
+      h=`<span class="chip"><b>Simulated rig</b></span><span class="chip" id="clk"></span>${spd}
+      <button class="btn" id="pz">${S.paused?'Resume':'Pause'}</button><button class="btn" id="rs">Reset</button>`;
+    }else if(rp){
+      h=`<span class="chip"><b>Replay</b></span><span class="chip" id="clk"></span>
+      <input class="seek" id="seek" type="range" min="0" max="1000" aria-label="Position in the recording">${spd}
+      <button class="btn" id="pz">${S.paused?'Resume':'Pause'}</button><select class="sel" id="runsel" aria-label="Saved run"></select>`;
+    }else{
+      h=`<span class="chip"><span class="dot ${S.broker==='up'?'':'down'}"></span><b>${S.broker==='up'?'Broker connected':'Broker disconnected'}</b></span><span class="chip" id="clk"></span>`;
+    }
+    if(!rp)h+=`<a class="btn" href="/api/report.html" target="_blank" rel="noopener" title="Printable report of this run. Use the browser's Save as PDF.">Report</a><a class="btn" href="/api/report.csv" title="Results table as CSV">CSV</a>`;
+    h+=`<button class="btn" id="th" aria-pressed="${dark}">${dark?'Light theme':'Dark theme'}</button>`;
+    $('tools').innerHTML=h;
+    if(S.mode==='demo'||rp){$('spd').value=String(Math.round(S.speed));$('spd').onchange=e=>ctl('speed',null,e.target.value);$('pz').onclick=()=>ctl('pause');}
+    if(S.mode==='demo')$('rs').onclick=()=>{netDown=false;ctl('reset')};
+    if(rp){
+      const sk=$('seek');sk.oninput=()=>{seeking=true;clearTimeout(seekT);seekT=setTimeout(()=>{ctl('seek',null,sk.value/1000);seeking=false},120)};
+      fetch('/api/runs').then(r=>r.json()).then(list=>{const sel=$('runsel');if(!sel)return;
+        sel.innerHTML=list.map(r=>`<option value="${esc(r.name)}" ${r.current?'selected':''}>${esc(r.name.replace(/^run-|\.jsonl\.gz$/g,''))}</option>`).join('');
+        sel.onchange=()=>ctl('load',null,null,sel.value)}).catch(()=>{});
+    }
+    $('th').onclick=()=>setTheme(dark?'light':'dark');
+  }
+  if(rp&&!seeking&&S.replay&&$('seek'))$('seek').value=Math.round(S.replay.frac*1000);
+  $('clk').innerHTML=S.mode==='demo'?'Simulated time <b class="num">'+fmtT(S.t)+'</b>':rp?'Recorded time <b class="num">'+fmtT(S.t)+'</b>':'Uptime <b class="num">'+fmtT(S.t)+'</b>';
+}
+let seeking=false,seekT=null;
+
+/* ---------- headline sentence ---------- */
+function lede(n,A){
+  const over=A.trueViol!=null?A.trueViol:A.viol, peak=A.trueMaxT!=null?A.trueMaxT:A.maxT;
+  let a,b='';
+  if(S.t<180){a='Learning how each rack heats and cools.';b='The thermal model starts from a rough guess and improves with every sample.';}
+  else{
+    a=over<0.5?`The AI controller has kept every rack under ${S.sla}\u00A0°C.`:`The AI controller went over ${S.sla}\u00A0°C for ${Math.round(over)} rack-seconds.`;
+    if(n===4){
+      const st=S.sc[0],th=S.sc[1],tp=S.sc[2],parts=[];
+      const rel=(x,ref,name)=>{if(!(ref.whCool>0.5)||!(x.whCool>0.1))return null;const d=Math.round((1-x.whCool/ref.whCool)*100);
+        return d===0?`the same cooling energy as ${name}`:`${Math.abs(d)}% ${d>0?'less':'more'} cooling energy than ${name}`};
+      const r1=rel(A,th,'the thermostat'),r0=rel(A,st,'fixed speed');
+      if(r1&&r0)b=`It uses ${r1} and ${r0}.`;else if(r1)b=`It uses ${r1}.`;
+      const nm={STATIC:'fixed speed',THERMOSTAT:'the thermostat','THERMOSTAT+':'the raised thermostat'};
+      const br=[st,th,tp].map(x=>({n:nm[x.name],v:x.trueViol!=null?x.trueViol:x.viol})).filter(x=>x.v>=0.5);
+      if(br.length)b+=` Over the limit: ${br.map(x=>x.n+' for '+Math.round(x.v)+' rack-seconds').join(', ')}.`;
+      if(r1&&A.whCool>th.whCool*1.05&&br.length)b+=' The AI spends more while it is handling active faults or heavy load.';
+    }else{
+      const itW=A.racks.reduce((s,r)=>s+(r.P||0),0);
+      b=`Cooling draws ${A.coolW.toFixed(1)} W for ${itW.toFixed(0)} W of IT load. Peak temperature so far is ${f1(peak)}\u00A0°C.`;
+    }
+  }
+  if(a+b!==lastLede){lastLede=a+b;$('lede1').textContent=a;$('lede2').textContent=b;}
+}
+
+/* ---------- scoreboard ---------- */
+let boardN=0;
+function buildBoard(n){
+  boardN=n;let h=`<div class="sc-row hd"><span>Controller</span><span>Cooling energy</span><span>Water used</span><span>Over the limit</span>${n>1?'<span>AI compared with this one</span>':'<span></span>'}</div>`;
+  S.sc.forEach((s,i)=>{h+=`<div class="sc-row ${i===n-1?'ai':''}"><div class="sc-name"><span class="swatch" style="background:${k().ctrl[s.name]||k().teal}"></span>${s.name==='AI'?'AI controller':s.name==='STATIC'?'Fixed speed':s.name==='THERMOSTAT'?'Thermostat':s.name==='THERMOSTAT+'?'Raised thermostat':esc(s.name)}</div>
+    <div class="val" data-label="Cooling energy"><span class="track"><i id="e${i}" style="background:${k().ctrl[s.name]||k().teal}"></i></span><b id="ev${i}"></b></div>
+    <div class="val" data-label="Water used"><span class="track"><i id="w${i}" style="background:${k().ctrl[s.name]||k().teal}"></i></span><b id="wv${i}"></b></div>
+    <div class="lim" data-label="Over the limit" id="l${i}" title="Rack-seconds above ${S.sla} °C"></div><div class="cmp" data-label="AI compared with this one" id="cm${i}"></div></div>`});
+  $('rows').innerHTML=h;
+}
+function renderBoard(n){
+  if(boardN!==n||!$('e0'))buildBoard(n);
+  const A=S.sc[n-1],demo=n===4;
+  $('bt').textContent=demo?'Four controllers, same load, same faults':'Live controller';
+  $('bn').textContent=demo?'Energy and water are the backend’s estimates from telemetry. Temperature and limit breaches use the simulator’s true temperature.'
+    :'Energy and water are estimated from fan and pump duty. Temperatures come from the sensors.';
+  const maxE=Math.max(0.0001,...S.sc.map(s=>s.whCool)),maxW=Math.max(0.0001,...S.sc.map(s=>s.water));
+  S.sc.forEach((s,i)=>{
+    $('e'+i).style.width=(s.whCool/maxE*100)+'%';$('ev'+i).textContent=f1(s.whCool,2)+' Wh';
+    $('w'+i).style.width=(s.water/maxW*100)+'%';$('wv'+i).textContent=f1(s.water,3)+' L';
+    const vi=s.trueViol!=null?s.trueViol:s.viol,pk=s.trueMaxT!=null?s.trueMaxT:s.maxT;
+    $('l'+i).innerHTML=(vi<0.5?'<b class="ok">None</b>':`<b class="bad">${Math.round(vi)} s</b>`)+`<small>peak ${f1(pk)} °C</small>`;
+    let c='';
+    if(n>1){
+      if(i===n-1)c='<span class="pill">Reference</span>';
+      else{
+        const ready=s.whCool>0.5&&A.whCool>0.1;
+        if(!ready)c='<span class="pill">Still warming up</span>';
+        else{const e=Math.round((1-A.whCool/s.whCool)*100),w=s.water>0.02?Math.round((A.water/s.water-1)*100):null;
+          c=(e===0?'<span class="pill">same energy</span>':`<span class="pill ${e>0?'good':'more'}">${Math.abs(e)}% ${e>0?'less':'more'} energy</span>`);
+          if(w!=null)c+=(w===0?'<span class="pill">same water</span>':`<span class="pill ${w<0?'good':'more'}">${Math.abs(w)}% ${w<0?'less':'more'} water</span>`);}
+      }
+    }
+    $('cm'+i).innerHTML=c;
+  });
+}
+
+/* ---------- rack cards ---------- */
+const DET={STALE:'No data',SENSOR:'Sensor fault',FAN:'Fan fault',FALLBACK:'Model fallback',GUARD:'Full cooling guard',FAILSAFE:'Node fail-safe',TRIP:'Load shed'};
+function renderRacks(A,demo){
+  A.racks.forEach((r,i)=>{
+    const T=r.T!=null?r.T:r.Tm;
+    $('T'+i).textContent=f1(T);$('Tu'+i).textContent=r.T!=null?'°C true':'°C sensor';
+    $('m'+i).textContent=(r.T!=null?'Sensor reads '+f1(r.Tm)+' °C. ':'')+(r.pred!=null?'Forecast in 30 s: '+f1(r.pred)+' °C':(r.flags?'No forecast while a safety mode is active':'No forecast yet'));
+    $('why'+i).textContent=r.why||'';
+    const fan=r.fanT!=null?r.fanT:r.fan,pump=r.pumpT!=null?r.pumpT:r.pump;
+    $('fv'+i).textContent=Math.round((fan||0)*100)+' %';$('pv'+i).textContent=Math.round((pump||0)*100)+' %';
+    $('fb'+i).style.width=((fan||0)*100)+'%';$('pb'+i).style.width=((pump||0)*100)+'%';
+    $('ld'+i).textContent=(r.heater!=null?f1(r.heater):f1(r.P))+' W';
+    let t='';
+    if(r.fanFailed)t+='<span class="tag real">Fan dead</span>';
+    if(r.stuck)t+='<span class="tag real">Sensor frozen</span>';
+    if(r.unplugged)t+='<span class="tag real">Cable pulled</span>';
+    if(r.nodeFs)t+='<span class="tag real">Node fail-safe</span>';
+    if(r.flags)r.flags.split(',').forEach(x=>{t+=`<span class="tag det">${DET[x]||esc(x)}</span>`});
+    if(tagCache[i]!==t){tagCache[i]=t;$('tg'+i).innerHTML=t;}
+  });
+  $('legend').textContent=demo?'Filled tags are what the backend detected. Outlined tags are what actually happened in the simulated rig.':'';
+  // fault console state
+  document.querySelectorAll('.fc .seg button').forEach(b=>{
+    const r=A.racks[+b.dataset.rack],v=r?r[b.dataset.field]:undefined;
+    b.setAttribute('aria-pressed',v===undefined?'false':String(v===(b.dataset.want==='true')));
+  });
+  document.querySelectorAll('[data-net]').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.net==='1')===netDown)));
+}
+
+/* ---------- signal path ---------- */
+function renderPath(A,n){
+  const stale=A.racks.filter(r=>(r.flags||'').includes('STALE')).length;
+  $('p0').textContent=stale?`${stale} of 3 racks silent`:'3 racks, 1 reading per second';
+  $('p1').textContent=(A.sent!=null?A.sent.toLocaleString()+' messages':'waiting')+(A.dropped?`, ${A.dropped} lost`:'');
+  const err=A.racks.reduce((s,r)=>s+(r.err||0),0)/3;$('p2').textContent=S.t<180?'learning':`error ${err.toFixed(2)} K at 30 s`;
+  $('p3').textContent=`target ${f1(S.setpoint)} °C`;
+  const af=A.racks.reduce((s,r)=>s+((r.fanT!=null?r.fanT:r.fan)||0),0)/3,ap=A.racks.reduce((s,r)=>s+((r.pumpT!=null?r.pumpT:r.pump)||0),0)/3;
+  $('p4').textContent=`fan ${Math.round(af*100)} %, pump ${Math.round(ap*100)} %`;
+  $('path').classList.toggle('live',!reduce&&!S.paused&&S.broker!=='down');
+}
+
+/* ---------- message feed ---------- */
+function renderFeed(A){
+  const out=[];
+  (A.log||[]).slice().reverse().forEach(l=>{
+    const m=/^\[\s*(\d+)s\]\s+(\S+)\s+(\{.*\})\s*$/.exec(l);if(!m){out.push(`<li><i></i><time></time><span>${esc(l)}</span></li>`);return;}
+    let j;try{j=JSON.parse(m[3])}catch(e){return}
+    const t=+m[1],ts=Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
+    if(m[2].endsWith('/telemetry')){
+      out.push(`<li title="${esc(m[3])}"><i style="background:${k().racks[0]}"></i><time>${ts}</time><span>Rack ${j.rack} reports ${f1(j.temp)} °C, fan ${Math.round(j.fan*100)} %, pump ${Math.round(j.pump*100)} %</span></li>`);
+    }else{
+      out.push(`<li title="${esc(m[3])}"><i style="background:${k().teal}"></i><time>${ts}</time><span>Backend sets fan ${Math.round(j.fan*100)} %, pump ${Math.round(j.pump*100)} %</span></li>`);
+    }
+  });
+  $('feed').innerHTML=out.join('')||'<li><i></i><time></time><span>No messages yet.</span></li>';
+  $('bus').textContent=S.mode==='demo'?`${A.sent} messages so far, ${A.dropped} lost to the simulated 1 % WiFi loss.`
+    :`${A.sent} sent, ${A.received} received, ${A.dropped} dropped.`;
+}
+
+/* ---------- alerts, presets, forecast scorecard ---------- */
+let evKey='';
+function renderAlerts(A){
+  const ev=A.events||[],key=ev.length?ev[0].seq+':'+ev.length+':'+(A.nEvents||0):'none';
+  if(key===evKey)return;evKey=key;
+  $('evl').innerHTML=ev.length?ev.slice(0,40).map(e=>{const t=Math.floor(e.t),ts=Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
+    return `<li class="${e.sev}"><time>${ts}</time><span class="lv">${e.sev==='crit'?'Critical':e.sev==='warn'?'Warning':'Info'}</span><span>${esc(e.text)}</span></li>`}).join('')
+    :'<li class="empty">No alerts yet. Use the fault console to break something and watch the system report it.</li>';
+  $('evn').textContent=(A.nEvents?A.nEvents+(A.nEvents===1?' event':' events')+' so far, newest first.':'Everything the backend and the nodes did to protect the racks, newest first.');
+}
+function renderPresets(A){
+  const cur=A.profile||'';
+  $('presetBox').style.display=(S.simControls&&A.profile!=null)?'':'none';
+  document.querySelectorAll('#presets button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.preset===cur)));
+  const p=PRESETS.find(x=>x[0]===cur);$('presetNote').textContent=p?p[2]:'';
+  // forecast scorecard
+  const ok=A.racks.filter(r=>r.fcMov!=null&&r.naiveMov!=null);
+  if(ok.length){const m=a=>a.reduce((x,y)=>x+y,0)/a.length,fm=m(ok.map(r=>r.fcMov)),nm=m(ok.map(r=>r.naiveMov)),fa=m(A.racks.filter(r=>r.fcErr!=null).map(r=>r.fcErr));
+    $('fcs').innerHTML=`30 s forecast check: typical error <b>${fa.toFixed(2)} K</b>. While the temperature is changing the model is off by <b>${fm.toFixed(2)} K</b>, against <b>${nm.toFixed(2)} K</b> for guessing it stays the same.`;
+  }else $('fcs').textContent='30 s forecast check: collecting enough samples.';
+}
+
+/* ---------- charts ---------- */
+function niceStep(r){const p=Math.pow(10,Math.floor(Math.log10(r))),f=r/p;return (f<1.5?1:f<3?2:f<7?5:10)*p}
+function drawChart(cv,cfg){
+  const dpr=devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;if(!w)return;
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr)}
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
+  const c=k(),L=38,R=cfg.rightPad||12,T=8,B=26,n=cfg.t.length;
+  g.font='12px "Hanken Grotesk",system-ui,sans-serif';
+  if(n<2){g.fillStyle=c.mut;g.fillText('Collecting data...',L,h/2);return}
+  const X=i=>L+(w-L-R)*i/(n-1),Y=v=>T+(h-T-B)*(1-(v-cfg.lo)/(cfg.hi-cfg.lo));
+  // bands (e.g. over the limit)
+  (cfg.bands||[]).forEach(b=>{g.fillStyle=b.color;const y1=Y(Math.min(b.to,cfg.hi)),y0=Y(Math.max(b.from,cfg.lo));g.fillRect(L,y1,w-L-R,y0-y1)});
+  // grid
+  const step=niceStep((cfg.hi-cfg.lo)/4);g.textAlign='right';g.lineWidth=1;
+  for(let v=Math.ceil(cfg.lo/step)*step;v<=cfg.hi+1e-9;v+=step){const y=Y(v);g.strokeStyle=c.line2;g.beginPath();g.moveTo(L,y);g.lineTo(w-R,y);g.stroke();g.fillStyle=c.mut;g.fillText(String(Math.round(v*10)/10),L-8,y+4)}
+  // reference lines
+  (cfg.lines||[]).forEach(l=>{g.strokeStyle=l.color;g.lineWidth=1.4;g.setLineDash(l.dash?[6,5]:[]);const y=Y(l.v);g.beginPath();g.moveTo(L,y);g.lineTo(w-R,y);g.stroke();g.setLineDash([]);
+    g.fillStyle=l.color;g.textAlign='left';g.fillText(l.label,L+6,y-5)});
+  // x labels
+  g.fillStyle=c.mut;g.textAlign='left';g.fillText(clockShort(cfg.t[0]),L,h-7);g.textAlign='center';g.fillText(clockShort(cfg.t[(n-1)>>1]),L+(w-L-R)/2,h-7);g.textAlign='right';g.fillText(clockShort(cfg.t[n-1]),w-R,h-7);
+  // series
+  g.lineJoin='round';g.lineCap='round';
+  cfg.series.forEach(s=>{
+    g.strokeStyle=s.color;g.lineWidth=s.width||1.8;g.globalAlpha=s.alpha==null?1:s.alpha;g.setLineDash(s.dash||[]);g.beginPath();let pen=false;
+    s.d.forEach((v,i)=>{if(v==null){pen=false;return}const y=clamp(Y(v),T,h-B);if(pen)g.lineTo(X(i),y);else{g.moveTo(X(i),y);pen=true}});g.stroke();g.setLineDash([]);g.globalAlpha=1});
+  // direct labels at the line ends, nudged apart
+  const labs=[];cfg.series.forEach(s=>{if(s.quiet)return;for(let i=s.d.length-1;i>=0;i--){if(s.d[i]!=null){labs.push({y:clamp(Y(s.d[i]),T+6,h-B-2),text:s.name,color:s.color});break}}});
+  labs.sort((a,b)=>a.y-b.y);for(let i=1;i<labs.length;i++)if(labs[i].y-labs[i-1].y<14)labs[i].y=labs[i-1].y+14;
+  g.textAlign='left';g.font='600 12.5px "Hanken Grotesk",system-ui,sans-serif';labs.forEach(l=>{g.fillStyle=l.color;g.fillText(l.text,w-R+8,l.y+4)});
+  g.font='12px "Hanken Grotesk",system-ui,sans-serif';
+  // hover
+  if(cv._hx!=null&&cv._hx>=L&&cv._hx<=w-R){
+    const i=clamp(Math.round((cv._hx-L)/(w-L-R)*(n-1)),0,n-1),x=X(i);
+    g.strokeStyle=c.mut;g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();g.moveTo(x,T);g.lineTo(x,h-B);g.stroke();g.setLineDash([]);
+    const rows=cfg.series.filter(s=>!s.quiet&&s.d[i]!=null).map(s=>({c:s.color,t:s.name+'  '+cfg.fmt(s.d[i])}));
+    const head=clockShort(cfg.t[i]),bw=Math.max(...rows.map(r=>g.measureText(r.t).width),g.measureText(head).width)+34,bh=22+rows.length*18;
+    let bx=x+12;if(bx+bw>w-4)bx=x-12-bw;const by=T+4;
+    g.fillStyle=c.panel;g.strokeStyle=c.line;g.lineWidth=1;g.beginPath();g.roundRect?g.roundRect(bx,by,bw,bh,8):g.rect(bx,by,bw,bh);g.fill();g.stroke();
+    g.fillStyle=c.mut;g.textAlign='left';g.fillText(head,bx+10,by+16);
+    rows.forEach((r,j)=>{g.fillStyle=r.c;g.fillRect(bx+10,by+27+j*18,10,3);g.fillStyle=c.ink;g.fillText(r.t,bx+26,by+31+j*18)});
+  }
+}
+function drawCharts(){
+  if(!S)return;const H=S.hist,n=S.sc.length,c=k();
+  let lo=99,hi=0;['T0','T1','T2'].forEach(key=>H[key].forEach(v=>{if(v!=null){lo=Math.min(lo,v);hi=Math.max(hi,v)}}));
+  lo=Math.floor(Math.min(lo,30)-1);hi=Math.ceil(Math.max(hi,S.sla+1)+1);
+  drawChart($('chartTemp'),{t:H.t,lo,hi,rightPad:64,fmt:v=>v.toFixed(1)+' °C',
+    bands:[{from:S.sla,to:hi+5,color:rgba(c.bad,.10)}],
+    lines:[{v:S.sla,color:c.bad,label:'Limit '+S.sla+' °C'},{v:S.setpoint,color:c.teal,label:'Target '+S.setpoint+' °C',dash:true}],
+    series:[0,1,2].map(i=>({name:'Forecast '+i,color:c.racks[i],d:H['F'+i]||[],width:1.3,alpha:.55,dash:[2,4],quiet:true})).concat([0,1,2].map(i=>({name:'Rack '+i,color:c.racks[i],d:H['T'+i],width:2})))});
+  let mx=1;for(let q=0;q<n;q++)H['cool'+q].forEach(v=>{if(v!=null&&v>mx)mx=v});
+  const nm={STATIC:'Fixed speed',THERMOSTAT:'Thermostat','THERMOSTAT+':'Raised thermostat',AI:'AI controller'};
+  drawChart($('chartPower'),{t:H.t,lo:0,hi:mx*1.12,rightPad:118,fmt:v=>v.toFixed(1)+' W',
+    series:S.sc.map((s,q)=>({name:nm[s.name]||s.name,color:c.ctrl[s.name]||c.teal,d:H['cool'+q],width:s.name==='AI'?2.8:1.6,alpha:s.name==='AI'?1:.85}))});
+}
+
+/* ---------- live rack drawing (the hero) ---------- */
+const RK=[0,1,2].map(()=>({Td:null,fanD:0,pumpD:0,off:0,wake:reduce?1:0,parts:null}));
+function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+function drawRack(i,ts,dt){
+  const cv=$('cv'+i),w=cv.clientWidth,h=cv.clientHeight;if(!w)return;
+  const dpr=devicePixelRatio||1;if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr)}
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
+  const st=RK[i],A=S.sc[S.sc.length-1],r=A.racks[i],c=k();
+  const Tt=r.T!=null?r.T:r.Tm,T0=Tt==null?26:Tt;
+  const fanT=(r.fanT!=null?r.fanT:r.fan)||0,pumpT=(r.pumpT!=null?r.pumpT:r.pump)||0;
+  st.Td=st.Td==null?T0:st.Td+(T0-st.Td)*Math.min(1,dt*3);
+  st.fanD+=(fanT-st.fanD)*Math.min(1,dt*5);st.pumpD+=(pumpT-st.pumpD)*Math.min(1,dt*5);
+  if(!reduce)st.wake=Math.min(1,st.wake+dt/1.6);
+  const T=st.Td,fan=st.fanD,pump=st.pumpD;
+  const top=26,bot=h-24,axisX=32,cabL=axisX+50,cabR=w-62,pipeX=w-28,midY=(top+bot)/2;
+  // heat glow
+  const heat=clamp((T-28)/12,0,1),gx=(cabL+cabR)/2;
+  const gr=g.createRadialGradient(gx,midY,10,gx,midY,Math.max(w,h)*.58);gr.addColorStop(0,ramp(T,.10+.30*heat));gr.addColorStop(1,ramp(T,0));g.fillStyle=gr;g.fillRect(0,0,w,h);
+  // cabinet
+  rr(g,cabL,top,cabR-cabL,bot-top,12);g.fillStyle=c.cab;g.fill();g.strokeStyle=c.line;g.lineWidth=1.5;g.stroke();
+  const x0=cabL+11,x1=cabR-11,slotH=(bot-top-26)/9-4,load=(r.heater!=null?r.heater:r.P)||20;
+  for(let s=0;s<9;s++){
+    const y=top+13+s*(slotH+4),idx=8-s,a=clamp(st.wake*1.7-idx*.1,0,1);
+    const sT=T+(idx-4)*.25+.22*Math.sin(ts/1300+s*1.9+i);
+    rr(g,x0,y,x1-x0,slotH,4);g.fillStyle=ramp(sT,.92*a);g.fill();
+    const on=reduce?1:(Math.sin(ts/1000*Math.PI*2*(1.2+load/25)+s*1.7)>0);
+    g.fillStyle=`rgba(255,255,255,${a*(on?.9:.3)})`;g.beginPath();g.arc(x1-8,y+slotH/2,2.2,0,6.283);g.fill();
+  }
+  // airflow
+  if(!st.parts)st.parts=Array.from({length:64},(_,j)=>({x:Math.random(),y:Math.random(),s:.7+Math.random()*.6,j}));
+  const flowOn=!r.fanFailed&&fan>.02;
+  if(flowOn){
+    const nVis=Math.round(64*Math.min(1,.12+fan*.95)),ax0=axisX+16,ax1=cabR+18,cold=hex(c.cold),warm=rampRGB(T);
+    for(const p of st.parts){
+      if(p.j>=nVis)continue;
+      if(!reduce){p.x+=dt*p.s*(.10+.75*fan);if(p.x>1){p.x-=1;p.y=Math.random()}}
+      const X=ax0+(ax1-ax0)*p.x,Y=top+10+(bot-top-20)*p.y,len=10+20*fan;
+      g.strokeStyle=mixRGB(cold,warm,smooth(.3,1,p.x),.45+.5*fan);g.lineWidth=2;g.beginPath();g.moveTo(X-len,Y);g.lineTo(X,Y);g.stroke();
+    }
+  }else if(r.fanFailed){
+    g.strokeStyle=c.bad;g.lineWidth=3;g.lineCap='round';const ix=axisX+26;
+    g.beginPath();g.moveTo(ix-9,midY-9);g.lineTo(ix+9,midY+9);g.moveTo(ix+9,midY-9);g.lineTo(ix-9,midY+9);g.stroke();
+  }
+  // coolant pipe
+  g.lineCap='round';g.lineWidth=9;g.strokeStyle=rgba(c.teal,.16);g.beginPath();g.moveTo(pipeX,top);g.lineTo(pipeX,bot);g.stroke();
+  g.lineWidth=3;g.strokeStyle=rgba(c.teal,.30);[top+28,midY,bot-28].forEach(y=>{g.beginPath();g.moveTo(cabR+3,y);g.lineTo(pipeX,y);g.stroke()});
+  if(pump>.02){
+    if(!reduce)st.off=(st.off+dt*(18+120*pump))%18;
+    g.lineWidth=4;g.strokeStyle=rgba(c.teal,.35+.6*pump);g.setLineDash([7,11]);g.lineDashOffset=-st.off;
+    g.beginPath();g.moveTo(pipeX,top);g.lineTo(pipeX,bot);g.stroke();g.setLineDash([]);
+  }
+  g.strokeStyle=c.teal;g.lineWidth=2;g.beginPath();g.arc(pipeX,top-12,7,0,6.283);g.stroke();
+  if(pump>.02){const a0=reduce?0:ts/260;g.beginPath();g.arc(pipeX,top-12,3.5,a0,a0+3.8);g.stroke()}
+  // thermometer scale: target and limit marks
+  const yT=v=>bot-(bot-top)*clamp((v-24)/20,0,1);
+  g.lineCap='round';g.lineWidth=5;g.strokeStyle=c.line2;g.beginPath();g.moveTo(axisX,bot);g.lineTo(axisX,top);g.stroke();
+  g.strokeStyle=ramp(T,1);g.beginPath();g.moveTo(axisX,bot);g.lineTo(axisX,yT(T));g.stroke();
+  g.font='600 11px "Hanken Grotesk",system-ui,sans-serif';g.textAlign='right';
+  [[30,c.mut],[35,c.mut],[S.sla,c.bad],[S.setpoint,c.teal]].forEach(m=>{const y=yT(m[0]);g.strokeStyle=m[1];g.lineWidth=m[1]===c.mut?1:2;g.beginPath();g.moveTo(axisX+5,y);g.lineTo(axisX+13,y);g.stroke();g.fillStyle=m[1];g.fillText(String(m[0]),axisX-9,y+4)});
+  g.fillStyle=ramp(T,1);g.beginPath();g.moveTo(axisX+8,yT(T));g.lineTo(axisX+17,yT(T)-5);g.lineTo(axisX+17,yT(T)+5);g.closePath();g.fill();
+}
+let lastTs=0;
+function frame(ts){
+  const dt=Math.min(.05,(ts-lastTs)/1000||.016);lastTs=ts;
+  if(S&&built)for(let i=0;i<3;i++)drawRack(i,ts,dt);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------- render ---------- */
+function render(){
+  if(!S)return;if(!built)build();
+  const n=S.sc.length,A=S.sc[n-1],demo=n===4;
+  document.body.classList.toggle('replay',S.mode==='replay');
+  renderTools();lede(n,A);renderRacks(A,demo);renderBoard(n);renderPath(A,n);renderFeed(A);renderAlerts(A);renderPresets(A);drawCharts();
+  $('fcNote').textContent=(demo||S.mode==='replay')?'Break something and watch each controller respond. Changes apply to every controller at once.'
+    :'These commands go to the hardware simulator. Real ESP32 hardware ignores them, so use the real rig instead.';
+  if(document.activeElement!==$('sp')){$('sp').value=S.setpoint;$('spv').textContent=S.setpoint+' °C'}
+  if(document.activeElement!==$('ww')){$('ww').value=S.waterWeight;$('wwv').textContent=S.waterWeight}
+}
+new MutationObserver(()=>{K=null;boardN=0;if(S)render()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+</script>
+</body>
+</html>

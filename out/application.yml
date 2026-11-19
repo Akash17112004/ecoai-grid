@@ -1,0 +1,30 @@
+# Spring Boot configuration. Any value can be overridden on the command line (--ecoai.mode=live)
+# or with an environment variable (ECOAI_MODE=live).
+server:
+  port: 8080
+  address: 127.0.0.1          # localhost only; set to 0.0.0.0 for LAN use together with ecoai.token
+
+spring:
+  application:
+    name: ecoai-grid
+  jackson:
+    default-property-inclusion: non_null
+
+ecoai:
+  mode: demo                  # demo = simulated rig, four controllers side by side | live = AI backend on an MQTT broker
+  seed: 42
+  speed: 20                   # demo: simulated seconds per real second
+  record-dir: runs            # saves every run for replay (java -jar ecoai-grid.jar replay runs); empty = off
+  csv-log: ""                 # CSV dataset of every telemetry sample and decision; empty = off
+  token: ""                   # set to require ?token=... (recommended with server.address=0.0.0.0)
+  mqtt-host: localhost
+  mqtt-port: 1883
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
