@@ -2,7 +2,7 @@
 
 # EcoAI Grid
 
-**AI-powered cooling optimisation for data centres**
+**AI-powered cooling optimization for data centres**
 
 A predictive controller that learns each rack's thermal behaviour online and picks the cheapest fan and pump setting that keeps the rack safe. Includes a hardware simulator, MQTT integration, a Spring Boot API and a live dashboard.
 
